@@ -151,6 +151,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -158,6 +160,19 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# JavaScript dependencies and build output
+node_modules/
+dist/
+.next/
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
 
 # Spyder project settings
 .spyderproject
