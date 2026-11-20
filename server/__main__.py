@@ -3,6 +3,7 @@
     python -m server                 # API 서버 + 10분마다 자동 수집
     python -m server --no-scheduler  # API 서버만 (자동 수집 끔)
     python -m server --crawl-once    # 수집 한 번만 하고 끝냄
+    python -m server --backfill 365  # 최근 365일 글을 모두 수집하고 끝냄 (이미 있는 글은 건너뜀)
 """
 
 import argparse
@@ -19,12 +20,17 @@ def main():
     parser = argparse.ArgumentParser(description="학과 공지 알림 서비스 서버")
     parser.add_argument("--no-scheduler", action="store_true", help="자동 수집을 켜지 않는다")
     parser.add_argument("--crawl-once", action="store_true", help="수집을 한 번만 하고 끝낸다")
+    parser.add_argument("--backfill", type=int, metavar="DAYS", help="최근 DAYS일 글을 모두 수집하고 끝낸다")
     parser.add_argument("--port", type=int, default=config.PORT)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
 
     app = create_app()  # DB 준비도 여기서 한다
+
+    if args.backfill is not None:
+        jobs.backfill_job(args.backfill)
+        return
 
     if args.crawl_once:
         jobs.crawl_job()

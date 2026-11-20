@@ -15,6 +15,12 @@ PORT = int(os.environ.get("NOTIF_PORT", "5000"))
 # 크롤링 주기(분)
 CRAWL_INTERVAL_MINUTES = 10
 
+# DB가 비어 있을 때 처음 가져올 기간(일). 1년치 약 500건, 10초 간격이라 약 1시간 30분 걸린다.
+FIRST_RUN_DAYS = 365
+
+# 작성된 지 이 일수가 넘은 글은 새로 저장돼도 알림을 보내지 않는다.
+NOTIFY_MAX_AGE_DAYS = 3
+
 # 화면(React 개발 서버) 주소. 이 주소에서 오는 요청만 허용한다.
 CORS_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
 

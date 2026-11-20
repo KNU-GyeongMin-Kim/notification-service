@@ -12,8 +12,8 @@ TIMEOUT = 15
 
 USER_AGENT = "NotifServiceCrawler/0.1 (student project)"
 
-# 마지막 글번호를 모를 때(첫 실행) 가져올 목록 페이지 수. 한 페이지에 15개.
-FIRST_RUN_PAGES = 1
-
-# 새 글을 찾을 때 최대로 넘겨볼 목록 페이지 수 (무한 반복 방지)
+# 새 글 수집 때 최대로 넘겨볼 목록 페이지 수 (한 페이지에 15개)
 MAX_PAGES = 5
+
+# 기간 수집 때 최대로 넘겨볼 목록 페이지 수. 1년치가 약 34페이지(2026-11 기준).
+BACKFILL_MAX_PAGES = 60
