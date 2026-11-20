@@ -105,13 +105,11 @@ def parse_detail(html):
     date = soup.select_one("#bo_v_title .if_date")
     body = soup.select_one("#bo_v_con")
 
-    images = []
-    content = ""
-    if body is not None:
-        for img in body.select("img"):
-            if img.get("src"):
-                images.append(img["src"])
-        content = _body_to_text(body)
+    # 이미지는 두 곳에 있다.
+    # - #bo_v_img: 첨부파일로 올린 이미지. 본문 위에 따로 표시되고 첨부파일 목록에는 나오지 않는다.
+    # - #bo_v_con: 본문 편집기에 넣은 이미지.
+    images = [img["src"] for img in soup.select("#bo_v_img img[src], #bo_v_con img[src]")]
+    content = _body_to_text(body) if body is not None else ""
 
     # 첨부파일 다운로드 주소는 시간이 지나면 만료되므로 파일 이름만 저장한다.
     attachments = [
