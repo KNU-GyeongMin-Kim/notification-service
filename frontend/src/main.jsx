@@ -20,6 +20,7 @@ const categories = ['전체', '학사', '장학', '취업', '행사', '대학원
 const StoreContext = createContext(null);
 const useStore = () => useContext(StoreContext);
 const formatDate = (value) => value?.replaceAll('.', '. ');
+const isUrgentDeadline = (badge) => { const match = badge?.match(/^D-(\d+)$/); return Boolean(match && Number(match[1]) <= 3); };
 
 function StoreProvider({ children }) {
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('moabom-user') || 'null'));
@@ -94,7 +95,7 @@ function NoticeCard({ notice, compact = false }) {
     <div className="card-topline"><span className={`category-pill ${notice.color || 'blue'}`}>{notice.category}</span><span className="card-date">{formatDate(notice.date)}</span></div>
     <Link className="card-title" to={`/notices/${notice.id}`}>{notice.title}</Link>
     <p className="card-summary">{notice.summary}</p>
-    <div className="card-bottom"><span className="source-name">{notice.source}</span><div className="card-meta">{notice.deadline && <span className={`deadline ${notice.color || 'blue'}`}><Clock3 size={12} /> {notice.badge}</span>}<button className={`save-button ${saved.includes(notice.id) ? 'is-saved' : ''}`} onClick={() => toggleSaved(notice.id)} aria-label={saved.includes(notice.id) ? '저장 취소' : '공지 저장'}>{saved.includes(notice.id) ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}</button></div></div>
+    <div className="card-bottom"><span className="source-name">{notice.source}</span><div className="card-meta">{notice.deadline && <span className={`deadline ${isUrgentDeadline(notice.badge) ? 'urgent' : ''}`}><Clock3 size={12} /> {notice.badge}</span>}<button className={`save-button ${saved.includes(notice.id) ? 'is-saved' : ''}`} onClick={() => toggleSaved(notice.id)} aria-label={saved.includes(notice.id) ? '저장 취소' : '공지 저장'}>{saved.includes(notice.id) ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}</button></div></div>
   </article>;
 }
 
@@ -113,17 +114,22 @@ function NoticeListPage() {
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState('');
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState('최신순');
+  const [sort, setSort] = useState('recent');
   const { saved } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const showSaved = searchParams.get('filter') === 'saved';
-  const filtered = useMemo(() => notices.filter((n) => (!showSaved || saved.includes(n.id)) && (category === '전체' || n.category === category) && (n.title + n.summary + n.source).toLowerCase().includes(query.toLowerCase()) && (sort !== '마감순' || n.deadline)), [category, query, sort, showSaved, saved]);
+  const filtered = useMemo(() => notices
+    .filter((n) => (!showSaved || saved.includes(n.id)) && (category === '\uC804\uCCB4' || n.category === category) && (n.title + n.summary + n.source).toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => {
+      const dateValue = (value) => value ? new Date(value.replaceAll('.', '-')).getTime() : Number.POSITIVE_INFINITY;
+      return sort === 'deadline' ? dateValue(a.deadline) - dateValue(b.deadline) : dateValue(b.date) - dateValue(a.date);
+    }), [category, query, sort, showSaved, saved]);
   const pageSize = 6; const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const items = filtered.slice((page - 1) * pageSize, page * pageSize);
   const selectCategory = (c) => { setCategory(c); setPage(1); };
   const search = (e) => { e.preventDefault(); setQuery(draft.trim()); setPage(1); };
   return <div className="page-wrap list-page"><div className="page-intro"><Eyebrow>NOTICE BOARD</Eyebrow><h1>공지사항</h1><p>학교의 모든 소식을 한곳에서 확인해 보세요.</p></div>
-    <div className="list-tools"><form className="search-box" onSubmit={search}><Search size={18} /><input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="궁금한 공지를 검색해 보세요" aria-label="공지 검색" /><button type="submit">검색</button></form><div className="list-tool-right"><button className={`saved-filter ${showSaved ? 'active' : ''}`} onClick={() => { setSearchParams(showSaved ? {} : { filter: 'saved' }); setPage(1); }}><Bookmark size={15} /> 저장한 공지 <span>{saved.length}</span></button><label className="sort-select"><span className="sr-only">정렬 기준</span><select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}><option>최신순</option><option>마감순</option></select><ChevronDown size={14} /></label></div></div>
+    <div className="list-tools"><form className="search-box" onSubmit={search}><Search size={18} /><input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="궁금한 공지를 검색해 보세요" aria-label="공지 검색" /><button type="submit">검색</button></form><div className="list-tool-right"><button className={`saved-filter ${showSaved ? 'active' : ''}`} onClick={() => { setSearchParams(showSaved ? {} : { filter: 'saved' }); setPage(1); }}><Bookmark size={15} /> 저장한 공지 <span>{saved.length}</span></button><div className="sort-toggle" role="group" aria-label="정렬 기준"><button type="button" className={sort === 'recent' ? 'active' : ''} aria-pressed={sort === 'recent'} onClick={() => { setSort('recent'); setPage(1); }}>최신순</button><button type="button" className={sort === 'deadline' ? 'active' : ''} aria-pressed={sort === 'deadline'} onClick={() => { setSort('deadline'); setPage(1); }}>마감순</button></div></div></div>
     <div className="category-tabs" role="tablist" aria-label="공지 카테고리">{categories.map((c) => <button key={c} role="tab" aria-selected={category === c} className={category === c ? 'active' : ''} onClick={() => selectCategory(c)}>{c}<span>{c === '전체' ? notices.length : notices.filter((n) => n.category === c).length}</span></button>)}</div>
     <div className="results-caption"><span>{showSaved ? '저장한 공지 ' : ''}총 <strong>{filtered.length}개</strong>의 공지</span>{(query || showSaved) && <button onClick={() => { setDraft(''); setQuery(''); setSearchParams({}); }}>필터 지우기 <X size={13} /></button>}</div>
     {items.length ? <div className="notice-grid two-col">{items.map((n) => <NoticeCard key={n.id} notice={n} />)}</div> : <div className="empty-state"><span><Search size={24} /></span><h3>검색 결과가 없어요</h3><p>다른 검색어를 입력하거나 카테고리를 바꿔보세요.</p><button className="button button-outline" onClick={() => { setCategory('전체'); setDraft(''); setQuery(''); }}>전체 공지 보기</button></div>}
@@ -146,7 +152,28 @@ function NoticeDetailPage() {
 
 function LoginPage() {
   const { setUser, notify } = useStore(); const navigate = useNavigate(); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [name, setName] = useState(''); const [showSignup, setShowSignup] = useState(false); const [error, setError] = useState('');
-  const submit = (e) => { e.preventDefault(); if (!email.includes('@')) { setError('올바른 이메일 주소를 입력해 주세요.'); return; } if (password.length < 4) { setError('비밀번호를 4자 이상 입력해 주세요.'); return; } const displayName = showSignup ? (name.trim() || email.split('@')[0]) : (email.split('@')[0] || '원중'); setUser({ email, name: displayName }); notify(`${displayName}님, 반가워요!`); navigate('/settings'); };
+  const submit = (e) => {
+    e.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) { setError('\uc62c\ubc14\ub978 \uc774\uba54\uc77c \uc8fc\uc18c\ub97c \uc785\ub825\ud574 \uc8fc\uc138\uc694.'); return; }
+    if (password.length < 4) { setError('\ube44\ubc00\ubc88\ud638\ub97c 4\uc790 \uc774\uc0c1 \uc785\ub825\ud574 \uc8fc\uc138\uc694.'); return; }
+    const accounts = JSON.parse(localStorage.getItem('moabom-accounts') || '[]');
+    const account = accounts.find((item) => item.email === normalizedEmail);
+    if (showSignup) {
+      if (account) { setError('\uc774\ubbf8 \uac00\uc785\ub41c \uc774\uba54\uc77c\uc785\ub2c8\ub2e4. \ub85c\uadf8\uc778\ud574 \uc8fc\uc138\uc694.'); return; }
+      const displayName = name.trim() || normalizedEmail.split('@')[0];
+      const newAccount = { email: normalizedEmail, password, name: displayName };
+      localStorage.setItem('moabom-accounts', JSON.stringify([...accounts, newAccount]));
+      setUser({ email: newAccount.email, name: newAccount.name });
+      notify(`${displayName}\ub2d8, \ubc18\uac00\uc6cc\uc694!`);
+      navigate('/settings');
+      return;
+    }
+    if (!account || account.password !== password) { setError('\uc774\uba54\uc77c \ub610\ub294 \ube44\ubc00\ubc88\ud638\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.'); return; }
+    setUser({ email: account.email, name: account.name });
+    notify(`${account.name}\ub2d8, \ubc18\uac00\uc6cc\uc694!`);
+    navigate('/settings');
+  };
   return <div className="login-page"><div className="login-art"><div className="login-art-content"><Link to="/" className="brand login-brand"><span className="brand-mark"><GraduationCap size={22} /></span><span>모아봄<span className="brand-dot">.</span></span></Link><div className="login-quote"><span>“</span><h1>중요한 학교 소식,<br />놓치지 않도록.</h1><p>나에게 필요한 공지만 모아<br />편하게 받아보세요.</p></div><div className="login-illustration"><div className="ill-sun" /><div className="ill-paper"><span /><span /><span /><span /></div><div className="ill-book"><i /><i /><i /></div><div className="ill-flower">✳</div></div><div className="art-caption">학교 생활의 좋은 소식, 모아봄과 함께</div></div></div><div className="login-form-side"><div className="login-form-wrap"><div className="mobile-login-brand"><Link to="/" className="brand"><span className="brand-mark"><GraduationCap size={22} /></span><span>모아봄<span className="brand-dot">.</span></span></Link></div><Eyebrow>{showSignup ? 'JOIN MOABOM' : 'WELCOME BACK'}</Eyebrow><h2>{showSignup ? '모아봄 시작하기' : '다시 만났네요!'}</h2><p className="form-intro">{showSignup ? '간단한 정보로 계정을 만들고 소식을 모아보세요.' : '로그인하고 나에게 필요한 학교 소식을 확인해요.'}</p><form onSubmit={submit} className="auth-form">{showSignup && <label>이름<input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름을 입력해 주세요" /></label>}<label>이메일 주소<div className="input-with-icon"><span>✉</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@university.ac.kr" autoComplete="email" /></div></label><label>비밀번호<div className="input-with-icon"><span>⌑</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호를 입력해 주세요" autoComplete={showSignup ? 'new-password' : 'current-password'} /></div></label>{error && <p className="form-error">{error}</p>}<button className="button button-primary auth-submit" type="submit">{showSignup ? '계정 만들기' : '로그인'} <ChevronRight size={16} /></button></form><div className="auth-switch"><span>{showSignup ? '이미 계정이 있으신가요?' : '아직 계정이 없으신가요?'}</span><button onClick={() => { setShowSignup(!showSignup); setError(''); }}>{showSignup ? '로그인' : '회원가입'}</button></div><div className="login-note"><span><Check size={13} /></span>가입하면 맞춤 공지 알림을 설정할 수 있어요.</div></div></div></div>;
 }
 
