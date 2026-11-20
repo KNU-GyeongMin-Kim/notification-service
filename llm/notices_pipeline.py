@@ -43,7 +43,7 @@ class NoticePipelineEngine:
         }
         
         try:
-            response = requests.post(url, json=payload, timeout=120)
+            response = requests.post(url, json=payload, timeout=180)
             response.raise_for_status()
             return response.json().get("response", "")
         except requests.exceptions.Timeout:
