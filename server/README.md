@@ -40,6 +40,41 @@ python -m server --backfill 365  # 최근 365일 글을 모두 수집하고 끝�
 | `app.py` | API 주소와 응답 형식 |
 | `jobs.py` | 주기 작업 (수집, 이후 요약·알림) |
 | `config.py` | 포트, DB 위치, 수집 주기 등 설정 |
+| `mailer.py` | 알림 메일 만들기·보내기, 키워드 대조 |
+
+## 이메일 발송
+
+`mailer.py`가 공지 1건으로 알림 메일을 만들어 보냅니다. 메일에는 제목, 분류, 게시일, 신청 기간, 대상, AI 요약, 걸린 키워드, **원문 링크(항상)** 가 들어갑니다. 본문이 없는 공지는 "원문에서 확인해 주세요" 안내가 붙습니다.
+
+### 설정
+
+1. 저장소 최상위의 `.env.example`을 복사해 `.env`로 이름을 바꿉니다. `.env`는 저장소에 올라가지 않습니다.
+2. 보내는 지메일 계정에서 2단계 인증을 켜고 **앱 비밀번호**(16자리)를 만듭니다. 구글 계정 비밀번호가 아닙니다.
+3. `.env`에 `SMTP_USER`(지메일 주소)와 `SMTP_PASSWORD`(앱 비밀번호)를 넣고, `MAIL_DRY_RUN=0`으로 바꿉니다.
+
+계정을 넣지 않았거나 `MAIL_DRY_RUN=1`이면 실제로 보내지 않고 `server/outbox/`에 `.eml` 파일로 저장합니다. `.eml`은 더블클릭하면 메일 프로그램으로 열어볼 수 있습니다.
+
+### 시험
+
+```
+python -m server.mailer --post 29519                                  # 미리보기만 (outbox 에 저장)
+python -m server.mailer --post 29519 --keywords "장학금, 안전교육"     # 키워드 대조 결과 포함
+python -m server.mailer --post 29519 --to 내주소@gmail.com             # 실제로 보내기
+```
+
+### 다른 코드에서 쓰기
+
+```python
+from server.mailer import Mailer, build_notice_email, match_keywords
+
+matched = match_keywords(notice, ["장학금", "인턴"])   # 제목·본문·요약에서 찾음, 띄어쓰기 무시
+if matched:
+    with Mailer() as m:                                  # SMTP 연결 하나로 여러 통
+        m.send(build_notice_email(notice, "user@example.com", matched))   # 성공 True / 실패 False
+```
+
+- 지메일 개인 계정은 하루 약 500통까지 보낼 수 있습니다.
+- 학교 메일 등에서는 스팸함으로 갈 수 있으니 시험할 때 스팸함도 확인합니다.
 
 ## API
 
@@ -128,5 +163,6 @@ const data = await res.json();
 - [x] 10분마다 자동 수집, 첫 수집은 최근 365일 기간 수집, 알림 제외
 - [ ] 새 공지 LLM 요약 연결 (2주차)
 - [ ] 사용자·키워드 API (로그인 방식 결정 후)
-- [ ] 키워드 맞는 사용자에게 이메일 발송 (2주차)
+- [x] 이메일 만들기·보내기, 키워드 대조 (`mailer.py`)
+- [ ] 새 공지 저장 후 키워드 맞는 사용자에게 자동 발송 (사용자·키워드 DB 함수 필요)
 - [ ] 시연용 공지 직접 넣기 기능
