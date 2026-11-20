@@ -7,7 +7,7 @@ import logging
 import threading
 from datetime import datetime, timedelta
 
-import db
+from database import db
 from crawler.crawl import crawl_new, crawl_since
 
 from . import config

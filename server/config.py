@@ -6,8 +6,9 @@ from pathlib import Path
 # 저장소 최상위 폴더
 ROOT = Path(__file__).resolve().parent.parent
 
-# DB 파일 위치. 실행한 폴더와 상관없이 항상 저장소 최상위의 notices.db 를 쓴다.
-DB_PATH = os.environ.get("NOTIF_DB_PATH", str(ROOT / "notices.db"))
+# DB 파일 위치. 기본은 database 모듈이 정한 위치(database/notices.db).
+# 시험할 때만 환경 변수 NOTIF_DB_PATH 로 다른 파일을 쓴다.
+DB_PATH = os.environ.get("NOTIF_DB_PATH")
 
 HOST = os.environ.get("NOTIF_HOST", "127.0.0.1")
 PORT = int(os.environ.get("NOTIF_PORT", "5000"))

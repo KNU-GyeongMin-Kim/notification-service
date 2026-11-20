@@ -29,7 +29,7 @@ python -m server --backfill 365  # 최근 365일 글을 모두 수집하고 끝�
 ```
 
 - 주소: http://127.0.0.1:5000
-- DB 파일: 저장소 최상위의 `notices.db` (저장소에는 올라가지 않음)
+- DB 파일: `database/notices.db` (저장소에는 올라가지 않음). DB 코드는 `database/db.py`
 - 사이트 규칙에 따라 요청 사이에 10초씩 쉬므로 글 1건에 약 10초 걸립니다. 첫 수집 기간은 `config.py`의 `FIRST_RUN_DAYS`로 바꿀 수 있습니다. 개발 중에는 `python -m server --backfill 7`로 짧게 채워두는 걸 추천합니다.
 
 ## 파일 구성
@@ -50,17 +50,18 @@ python -m server --backfill 365  # 최근 365일 글을 모두 수집하고 끝�
 | `GET /api/health` | 서버 상태, 저장된 공지 수, 마지막 수집 결과 |
 | `GET /api/notices` | 공지 목록 (최신순) |
 | `GET /api/notices/<id>` | 공지 상세 (본문, 이미지, 첨부파일 포함) |
-| `GET /api/categories` | 분류별 공지 개수 |
+| `GET /api/categories` | 분류별 공지 개수 (세부 분류, 사이트 분류 따로) |
 
 ### 공지 목록
 
-`GET /api/notices?page=1&size=20&category=장학`
+`GET /api/notices?page=1&size=20&category=장학&board_category=일반공지`
 
 | 값 | 내용 | 기본값 |
 |---|---|---|
 | `page` | 페이지 번호 | 1 |
 | `size` | 한 페이지 개수 (최대 100) | 20 |
-| `category` | 분류. 비우거나 `전체`면 모두 | 없음 |
+| `category` | 세부 분류(AI: 학사, 장학, 취업, 공모전, 연구 등). 비우거나 `전체`면 모두 | 없음 |
+| `board_category` | 사이트 분류(일반공지, 학사, 장학 등). 비우거나 `전체`면 모두 | 없음 |
 
 ```json
 {
@@ -70,11 +71,12 @@ python -m server --backfill 365  # 최근 365일 글을 모두 수집하고 끝�
       "title": "[융합전공] 2027학년도 1학기 융합전공 이수 대상자 선발 안내",
       "date": "2026-11-19 10:38",
       "url": "https://aicollege.knu.ac.kr/bbs/board.php?bo_table=sub6_1_a&wr_id=29526",
-      "category": "일반공지",
+      "category": null,
       "board_category": "일반공지",
       "summary": null,
+      "summary_status": "pending",
       "target": null,
-      "apply_period": null,
+      "application_period": null,
       "has_attachments": true
     }
   ],
@@ -84,8 +86,20 @@ python -m server --backfill 365  # 최근 365일 글을 모두 수집하고 끝�
 }
 ```
 
-- `category`: AI 분류가 있으면 AI 분류, 없으면 게시판 분류입니다.
-- `summary`, `target`, `apply_period`: LLM 요약이 붙기 전에는 `null`입니다.
+- 분류는 두 가지를 같이 씁니다. `category`는 팀이 정한 세부 분류(LLM이 붙임), `board_category`는 사이트 자체 분류입니다.
+- `category`, `summary`, `target`, `application_period`: LLM 요약이 붙기 전에는 `null`입니다.
+- `summary_status`: `pending`(요약 대기), `done`(완료), `failed`(실패), `skipped`(본문이 없어 건너뜀)
+
+### 분류 목록
+
+`GET /api/categories`
+
+```json
+{
+  "category": [{"name": "장학", "count": 3}],
+  "board_category": [{"name": "일반공지", "count": 12}, {"name": "장학", "count": 2}]
+}
+```
 
 ### 공지 상세
 
