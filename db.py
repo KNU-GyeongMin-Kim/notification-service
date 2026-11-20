@@ -122,6 +122,54 @@ def save_summary(notice_id, summary):
     conn.close()
 
 
+# ---------------------------------------------------------------- 서버에서 쓰려고 추가 (김문수)
+
+
+def get_last_post_no():
+    """저장된 공지 중 가장 큰 게시판 글번호. 공지가 하나도 없으면 None."""
+    conn = get_conn()
+    row = conn.execute("SELECT MAX(post_no) FROM notices").fetchone()
+    conn.close()
+    return row[0]
+
+
+def get_notice_by_post_no(post_no):
+    """게시판 글번호로 공지 1건을 가져온다. 없으면 None."""
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM notices WHERE post_no = ?", (post_no,)).fetchone()
+    conn.close()
+    return row
+
+
+def list_notices(category=None, limit=20, offset=0):
+    """공지 목록과 전체 개수를 돌려준다. category가 있으면 그 분류만.
+
+    분류는 AI 분류(category)를 먼저 보고, 없으면 게시판 분류(board_category)를 쓴다.
+    """
+    where, params = "", []
+    if category:
+        where, params = "WHERE COALESCE(category, board_category) = ?", [category]
+    conn = get_conn()
+    total = conn.execute(f"SELECT COUNT(*) FROM notices {where}", params).fetchone()[0]
+    rows = conn.execute(
+        f"SELECT * FROM notices {where} ORDER BY published_at DESC, post_no DESC LIMIT ? OFFSET ?",
+        params + [limit, offset],
+    ).fetchall()
+    conn.close()
+    return rows, total
+
+
+def count_by_category():
+    """분류별 공지 개수. [(분류, 개수), ...] 많은 순."""
+    conn = get_conn()
+    rows = conn.execute(
+        """SELECT COALESCE(category, board_category) AS name, COUNT(*) AS cnt
+           FROM notices GROUP BY name ORDER BY cnt DESC"""
+    ).fetchall()
+    conn.close()
+    return [(r["name"], r["cnt"]) for r in rows]
+
+
 if __name__ == "__main__":
     init_db()
     conn = get_conn()

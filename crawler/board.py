@@ -73,7 +73,7 @@ def parse_list(html):
         rows.append(
             {
                 "post_no": int(wr_id),
-                "title": link.get_text(" ", strip=True),
+                "title": _one_line(link.get_text(" ")),
                 "date": date.get_text(strip=True) if date else "",
                 "url": post_url(wr_id),
                 "board_category": cate.get_text(strip=True) if cate else "",
@@ -119,7 +119,7 @@ def parse_detail(html):
     ]
 
     return {
-        "title": title.get_text(" ", strip=True) if title else "",
+        "title": _one_line(title.get_text(" ")) if title else "",
         "posted_at": _parse_posted_at(date.get_text(" ", strip=True)) if date else "",
         "board_category": cate.get_text(strip=True) if cate else "",
         "content": content,
@@ -147,6 +147,11 @@ def _body_to_text(body):
     for el in body.find_all(_BLOCK_TAGS):
         el.append("\n")
     return _clean_text(body.get_text())
+
+
+def _one_line(text):
+    """줄바꿈과 특수 공백(\xa0 등)을 보통 띄어쓰기 하나로 바꾼다."""
+    return " ".join(text.split())
 
 
 def _clean_text(text):
