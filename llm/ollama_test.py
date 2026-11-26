@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import re
@@ -28,8 +29,26 @@ def summarize_and_classify(notice):
 - 해외·교류: 해외연수, 교환학생, 국제교류
 - 일반: 학부 소식, 시설 안내, 기타 공지
 
-국내 대학 사이의 학점교류나 국내 대학 수강 신청은 학사로 분류하세요. 해외연수, 해외 대학 파견, 국제교류에 해당할 때만 해외·교류로 분류하세요.
-융합전공, 복수전공, 전공 이수자 선발은 학사로 분류하세요. 공모전·경진대회·학술대회는 행사 성격도 있더라도 공모전·대회를 우선하세요. 본문이 비어 있으면 제목과 게시판 분류를 근거로 분류하세요.
+주요 공지 목적을 하나 골라 분류하세요. 제목에 보조 키워드가 있더라도 실제 모집·신청·변경 내용이 중심인 항목을 우선하세요.
+
+우선 적용 규칙:
+- 정규 교과목, 계절수업, 수강·학점교류, 졸업·학적, 자격 요건, 필수 안전교육은 학사입니다.
+- 설명회·세미나·특강 참석자를 모집하는 공지는 행사·프로그램입니다. 단, 공무원·기업 채용시험이나 취업 선발 절차를 안내하는 설명회는 취업·인턴입니다.
+- 공모전·해커톤·경진대회 참가팀이나 참가자를 모집하면 공모전·대회입니다. 관련 교육이나 설명회가 함께 있어도 대회 참가 모집이 중심이면 공모전·대회입니다.
+- 채용, 취업 과정, 인턴십, 현장실습은 취업·인턴입니다. 해외 현장에서 진행되는 인턴십도 취업·인턴입니다.
+- 해외·교류는 학생의 해외연수, 해외 대학 교류·파견, 국제 봉사·교류 프로그램에만 사용하세요. 기업의 해외진출 지원 사업은 일반입니다.
+- 연구실·연구 참여자 모집이나 연구과제 지원은 연구입니다. 기업과 대학 연구진이 공동 연구개발을 수행하는 과제도 연구입니다.
+- 정규 수업이 아닌 자격증 교육, 도서관 이용 교육, 비교과 캠프·프로그램은 행사·프로그램입니다.
+- 융합전공·복수전공 이수자 선발은 학사입니다. 해당 전공 설명회 참석자 모집은 행사·프로그램입니다.
+- 본문이 비어 있으면 제목과 게시판 분류를 근거로 판단하세요.
+
+예시:
+- 국내 대학 겨울계절수업 학점교류 신청 → 학사
+- 융합전공 설명회 참석자 모집 → 행사·프로그램
+- 지역인재 7급 시험 변경 안내 또는 시험 대비 설명회 → 취업·인턴
+- 연구실 안전교육 미이수자 이수 안내 → 학사
+- AI 경진대회 참가팀 모집 → 공모전·대회
+- 태국 진출을 준비하는 기업 대상 지원사업 → 일반
 
 요약은 본문에 있는 사실만 사용하고, 일정이나 대상이 중요하면 포함하세요. 본문은 최대 두 문장으로 요약하세요. 제목과 게시판 분류도 참고하되, 본문 내용을 우선하세요. 숫자와 한국어 단위는 붙여 써서 2차, 12월, 4인처럼 자연스러운 표기로 작성하세요.
 
@@ -68,12 +87,17 @@ def summarize_and_classify(notice):
 
 
 def main():
-    input_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name("test.json")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", nargs="?", default=str(Path(__file__).with_name("test.json")))
+    parser.add_argument("--out")
+    args = parser.parse_args()
+    input_path = Path(args.input)
     with input_path.open(encoding="utf-8") as file:
         notices = json.load(file)
     if not isinstance(notices, list):
         raise ValueError("입력 JSON은 공지 객체를 담은 배열이어야 합니다.")
     output = []
+    output_path = Path(args.out) if args.out else None
     total_started = time.perf_counter()
     inference_times = []
     for notice in notices:
@@ -90,7 +114,15 @@ def main():
                 "category": generated["category"],
             }
         )
-    print(json.dumps(output, ensure_ascii=False, indent=2))
+        if output_path:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                json.dumps(output, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+    output_json = json.dumps(output, ensure_ascii=False, indent=2) + "\n"
+    if not args.out:
+        print(output_json, end="")
     total_elapsed = time.perf_counter() - total_started
     average_elapsed = sum(inference_times) / len(inference_times) if inference_times else 0
     print(f"공지 {len(notices)}건 추론 합계: {sum(inference_times):.2f}초", file=sys.stderr)
