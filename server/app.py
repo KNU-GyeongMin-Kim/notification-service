@@ -3,11 +3,16 @@
 API 목록은 server/README.md 참고.
 """
 
+import logging
+from datetime import timedelta
+
 from flask import Flask, jsonify, request
 
 from database import db
 
-from . import config, jobs, notifier, summarizer
+from . import auth, config, jobs, notifier, summarizer
+
+log = logging.getLogger(__name__)
 
 
 def create_app():
@@ -16,6 +21,17 @@ def create_app():
     db.init_db()
 
     app = Flask(__name__)
+
+    # 로그인 세션 쿠키
+    app.secret_key = config.SECRET_KEY
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,     # 자바스크립트가 쿠키를 읽지 못하게
+        SESSION_COOKIE_SAMESITE="Lax",    # 다른 사이트에서 보낸 요청에는 쿠키가 안 붙게
+        PERMANENT_SESSION_LIFETIME=timedelta(days=14),
+    )
+    if not config.SECRET_KEY_FROM_ENV:
+        log.warning(".env 에 SECRET_KEY 가 없어 임시 값을 씁니다. 서버를 다시 켜면 모두 로그아웃됩니다.")
+    app.register_blueprint(auth.bp)
     app.json.ensure_ascii = False  # 한글을 \uXXXX 로 바꾸지 않고 그대로 보낸다
 
     @app.after_request
@@ -25,7 +41,8 @@ def create_app():
         if origin in config.CORS_ORIGINS:
             resp.headers["Access-Control-Allow-Origin"] = origin
             resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
-            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
         return resp
 
     @app.get("/api/health")
@@ -69,6 +86,10 @@ def create_app():
     @app.errorhandler(404)
     def not_found(e):
         return jsonify(error="없는 주소입니다."), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return jsonify(error="이 주소에서 지원하지 않는 요청 방식입니다."), 405
 
     return app
 

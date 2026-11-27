@@ -47,6 +47,7 @@ python -m server --notify        # 알림 대기 공지를 한 번 처리하고 
 | `mailer.py` | 알림 메일 만들기·보내기, 키워드 대조 |
 | `notifier.py` | 알림 흐름: 대상 사용자 찾기, 발송, 발송 기록 |
 | `demo.py` | 시연용 공지 넣기·지우기 |
+| `auth.py` | 로그인, 내 정보, 키워드·구독 분류·저장한 공지 API |
 
 ## LLM 요약 연결
 
@@ -207,6 +208,38 @@ python -m server.demo clear               # 시연용 공지와 발송 기록 �
 | `documents` | 제출 서류 목록 (LLM) |
 | `fetched_at` | 수집 시각 |
 
+### 로그인과 사용자 설정
+
+로그인 상태는 **세션 쿠키**로 유지됩니다. 화면은 Vite proxy로 `/api`를 부르면 쿠키가 자동으로 오갑니다. `.env`에 `SECRET_KEY`를 꼭 넣어 주세요 (없으면 서버를 다시 켤 때마다 모두 로그아웃됨).
+
+| 주소 | 보내는 값 | 내용 |
+|---|---|---|
+| `POST /api/auth/signup` | `{"email", "password", "name"}` | 회원가입 후 바로 로그인. 비밀번호 8자 이상. 이메일 중복이면 409 |
+| `POST /api/auth/login` | `{"email", "password"}` | 로그인. 틀리면 401 |
+| `POST /api/auth/logout` | | 로그아웃 |
+| `GET /api/me` | | 내 정보 (로그인 안 했으면 401) |
+| `PATCH /api/me` | `{"name"?, "notify_on"?}` | 이름, 이메일 알림 켜기·끄기 |
+| `GET /api/me/keywords` | | 내 키워드 |
+| `PUT /api/me/keywords` | `{"keywords": ["장학금", "인턴"]}` | 키워드 전체 바꾸기 (설정 화면 저장용) |
+| `POST /api/me/keywords` | `{"word": "AI"}` | 키워드 하나 추가 |
+| `DELETE /api/me/keywords/<키워드>` | | 키워드 하나 삭제 |
+| `GET /api/me/categories` | | 구독 분류와 고를 수 있는 분류 목록(`available`) |
+| `PUT /api/me/categories` | `{"categories": ["장학", "취업·인턴"]}` | 구독 분류 전체 바꾸기. 8개 세부 분류만 가능 |
+| `GET /api/me/saved` | | 저장한 공지 목록 |
+| `PUT /api/me/saved/<공지 id>` | | 공지 저장 |
+| `DELETE /api/me/saved/<공지 id>` | | 저장 해제 |
+
+내 정보 응답:
+
+```json
+{"id": 1, "email": "a@x.com", "name": "김문수", "notify_on": true, "created_at": "2026-11-27 10:32:46",
+ "keywords": ["장학금", "AI"], "categories": ["장학", "취업·인턴"]}
+```
+
+- 이메일은 소문자로 바꿔 저장합니다. 비밀번호는 해시(scrypt)로만 저장되고 응답에 나가지 않습니다.
+- 로그인 실패 문구는 "이메일이 없음"과 "비밀번호 틀림"을 구분하지 않습니다 (가입 여부 노출 방지).
+- 오류 응답은 모두 `{"error": "안내 문구"}` 형태라 화면에 그대로 보여주면 됩니다.
+
 ### 화면에서 호출하기
 
 React 개발 서버(`http://localhost:5173`)에서 오는 요청은 허용되어 있습니다.
@@ -221,8 +254,8 @@ const data = await res.json();
 - [x] Flask 서버 뼈대, 공지 목록·상세·분류 API
 - [x] 10분마다 자동 수집, 첫 수집은 최근 365일 기간 수집, 알림 제외
 - [x] 새 공지 LLM 요약·분류 연결 (`summarizer.py`)
-- [ ] 사용자·키워드 API (로그인 방식 결정 후)
+- [x] 로그인·내 정보·키워드·구독 분류·저장한 공지 API (`auth.py`)
 - [x] 이메일 만들기·보내기, 키워드 대조 (`mailer.py`)
 - [x] 알림 흐름 (`notifier.py`): 키워드·분류 대조, 발송, 재시도, 중복 방지
-- [ ] 알림 흐름 실제 동작 (DB 함수 추가 대기)
+- [x] 알림 흐름 실제 동작 (DB 사용자 함수 연결)
 - [x] 시연용 공지 넣기·지우기 (`demo.py`)
