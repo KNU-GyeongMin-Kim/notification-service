@@ -234,3 +234,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 *.db
+
+# 메일 미리보기 저장 폴더
+server/outbox/

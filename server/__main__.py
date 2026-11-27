@@ -4,6 +4,8 @@
     python -m server --no-scheduler  # API 서버만 (자동 수집 끔)
     python -m server --crawl-once    # 수집 한 번만 하고 끝냄
     python -m server --backfill 365  # 최근 365일 글을 모두 수집하고 끝냄 (이미 있는 글은 건너뜀)
+    python -m server --summarize     # 요약 대기 공지를 모두 LLM 으로 요약하고 끝냄
+    python -m server --notify        # 알림 대기 공지를 한 번 처리하고 끝냄
 """
 
 import argparse
@@ -12,7 +14,7 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from . import config, jobs
+from . import config, jobs, notifier, summarizer
 from .app import create_app
 
 
@@ -21,6 +23,8 @@ def main():
     parser.add_argument("--no-scheduler", action="store_true", help="자동 수집을 켜지 않는다")
     parser.add_argument("--crawl-once", action="store_true", help="수집을 한 번만 하고 끝낸다")
     parser.add_argument("--backfill", type=int, metavar="DAYS", help="최근 DAYS일 글을 모두 수집하고 끝낸다")
+    parser.add_argument("--summarize", action="store_true", help="요약 대기 공지를 모두 요약하고 끝낸다")
+    parser.add_argument("--notify", action="store_true", help="알림 대기 공지를 한 번 처리하고 끝낸다")
     parser.add_argument("--port", type=int, default=config.PORT)
     args = parser.parse_args()
 
@@ -36,6 +40,14 @@ def main():
         jobs.crawl_job()
         return
 
+    if args.summarize:
+        summarizer.summarize_all()
+        return
+
+    if args.notify:
+        notifier.notify_pending()
+        return
+
     if not args.no_scheduler:
         scheduler = BackgroundScheduler(timezone="Asia/Seoul")
         scheduler.add_job(
@@ -43,6 +55,14 @@ def main():
             "interval",
             minutes=config.CRAWL_INTERVAL_MINUTES,
             next_run_time=datetime.now(),  # 서버를 켜자마자 한 번 수집
+            max_instances=1,
+            coalesce=True,
+        )
+        # 요약(LLM 을 끈 상태면 건너뜀)과 알림을 2분마다
+        scheduler.add_job(
+            jobs.summarize_job,
+            "interval",
+            minutes=config.SUMMARIZE_INTERVAL_MINUTES,
             max_instances=1,
             coalesce=True,
         )

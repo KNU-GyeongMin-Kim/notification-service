@@ -3,20 +3,35 @@
 API 목록은 server/README.md 참고.
 """
 
-import json
+import logging
+from datetime import timedelta
 
 from flask import Flask, jsonify, request
 
-import db
+from database import db
 
-from . import config, jobs
+from . import auth, config, jobs, notifier, summarizer
+
+log = logging.getLogger(__name__)
 
 
 def create_app():
-    db.DB_PATH = config.DB_PATH
+    if config.DB_PATH:  # 지정하지 않으면 database 모듈의 기본 위치를 쓴다
+        db.DB_PATH = config.DB_PATH
     db.init_db()
 
     app = Flask(__name__)
+
+    # 로그인 세션 쿠키
+    app.secret_key = config.SECRET_KEY
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,     # 자바스크립트가 쿠키를 읽지 못하게
+        SESSION_COOKIE_SAMESITE="Lax",    # 다른 사이트에서 보낸 요청에는 쿠키가 안 붙게
+        PERMANENT_SESSION_LIFETIME=timedelta(days=14),
+    )
+    if not config.SECRET_KEY_FROM_ENV:
+        log.warning(".env 에 SECRET_KEY 가 없어 임시 값을 씁니다. 서버를 다시 켜면 모두 로그아웃됩니다.")
+    app.register_blueprint(auth.bp)
     app.json.ensure_ascii = False  # 한글을 \uXXXX 로 바꾸지 않고 그대로 보낸다
 
     @app.after_request
@@ -26,26 +41,35 @@ def create_app():
         if origin in config.CORS_ORIGINS:
             resp.headers["Access-Control-Allow-Origin"] = origin
             resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
-            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
         return resp
 
     @app.get("/api/health")
     def health():
         _, total = db.list_notices(limit=1)
-        return jsonify(status="ok", notices=total, last_crawl=jobs.last_crawl)
+        return jsonify(
+            status="ok",
+            notices=total,
+            summary_status=db.count_summary_status(),
+            last_crawl=jobs.last_crawl,
+            last_summary=summarizer.last_summary,
+            last_notify=notifier.last_notify,
+        )
 
     @app.get("/api/notices")
     def notices():
         page = max(request.args.get("page", 1, type=int), 1)
         size = min(max(request.args.get("size", config.PAGE_SIZE, type=int), 1), config.MAX_PAGE_SIZE)
-        category = request.args.get("category") or None
-        if category == "전체":
-            category = None
-
-        rows, total = db.list_notices(category=category, limit=size, offset=(page - 1) * size)
+        rows, total = db.list_notices(
+            category=_filter_value("category"),
+            board_category=_filter_value("board_category"),
+            limit=size,
+            offset=(page - 1) * size,
+        )
         return jsonify(items=[notice_to_dict(r) for r in rows], total=total, page=page, size=size)
 
-    @app.get("/api/notices/<int:post_no>")
+    @app.get("/api/notices/<int(signed=True):post_no>")  # 시연용 공지는 음수 번호
     def notice_detail(post_no):
         row = db.get_notice_by_post_no(post_no)
         if row is None:
@@ -54,46 +78,49 @@ def create_app():
 
     @app.get("/api/categories")
     def categories():
-        return jsonify([{"name": name, "count": cnt} for name, cnt in db.count_by_category()])
+        def counts(column):
+            return [{"name": name, "count": cnt} for name, cnt in db.count_by_category(column)]
+
+        return jsonify(category=counts("category"), board_category=counts("board_category"))
 
     @app.errorhandler(404)
     def not_found(e):
         return jsonify(error="없는 주소입니다."), 404
 
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return jsonify(error="이 주소에서 지원하지 않는 요청 방식입니다."), 405
+
     return app
 
 
+def _filter_value(name):
+    """목록 필터 값. 비어 있거나 '전체'면 거르지 않는다."""
+    value = request.args.get(name) or None
+    return None if value == "전체" else value
+
+
 def notice_to_dict(row, detail=False):
-    """DB 한 줄을 화면에 보낼 형태로 바꾼다. 공지 번호는 게시판 글번호(post_no)를 쓴다."""
+    """DB 공지(dict)를 화면에 보낼 형태로 바꾼다. 공지 번호는 게시판 글번호(post_no)를 쓴다."""
     d = {
         "id": row["post_no"],
         "title": row["title"],
         "date": row["published_at"],
         "url": row["url"],
-        "category": row["category"] or row["board_category"],
-        "board_category": row["board_category"],
+        "category": row["category"],              # 세부 분류 (AI). 요약 전에는 null
+        "board_category": row["board_category"],  # 사이트 분류
         "summary": row["summary"],
+        "summary_status": row["summary_status"],
         "target": row["target"],
-        "apply_period": row["apply_period"],
-        "has_attachments": bool(_json_list(row["attachments"])),
+        "application_period": row["application_period"],
+        "has_attachments": bool(row["attachments"]),
     }
     if detail:
         d.update(
             content=row["content"],
-            images=_json_list(row["images"]),
-            attachments=_json_list(row["attachments"]),
-            documents=_json_list(row["documents"]),
+            images=row["images"],
+            attachments=row["attachments"],
+            documents=row["documents"],
             fetched_at=row["fetched_at"],
         )
     return d
-
-
-def _json_list(text):
-    """DB에 JSON 글자로 저장된 목록을 파이썬 목록으로 되돌린다."""
-    if not text:
-        return []
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError:
-        return []
-    return value if isinstance(value, list) else []
