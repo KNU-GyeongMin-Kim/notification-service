@@ -7,7 +7,7 @@ from flask import Flask, jsonify, request
 
 from database import db
 
-from . import config, jobs
+from . import config, jobs, summarizer
 
 
 def create_app():
@@ -31,7 +31,13 @@ def create_app():
     @app.get("/api/health")
     def health():
         _, total = db.list_notices(limit=1)
-        return jsonify(status="ok", notices=total, last_crawl=jobs.last_crawl)
+        return jsonify(
+            status="ok",
+            notices=total,
+            summary_status=db.count_summary_status(),
+            last_crawl=jobs.last_crawl,
+            last_summary=summarizer.last_summary,
+        )
 
     @app.get("/api/notices")
     def notices():

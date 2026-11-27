@@ -241,6 +241,29 @@ def list_notices(category=None, board_category=None, limit=20, offset=0):
     return [_to_dict(row) for row in rows], total
 
 
+def get_notices_to_summarize_new_first(limit=20):
+    """요약 대기 공지를 알림 대상(notified=0)부터, 그 안에서는 최신 글부터 가져온다.
+
+    기간 수집으로 쌓인 옛 공지 수백 건 뒤에서 새 공지가 기다리지 않게 하기 위해서다.
+    """
+    conn = get_conn()
+    rows = conn.execute(
+        """SELECT * FROM notices WHERE summary_status = 'pending'
+           ORDER BY notified ASC, post_no DESC LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [_to_dict(row) for row in rows]
+
+
+def count_summary_status():
+    """요약 상태별 공지 개수. {"pending": 3, "done": 10, ...}"""
+    conn = get_conn()
+    rows = conn.execute("SELECT summary_status, COUNT(*) FROM notices GROUP BY summary_status").fetchall()
+    conn.close()
+    return {r[0]: r[1] for r in rows}
+
+
 def count_by_category(column="category"):
     """분류별 공지 개수. [(분류, 개수), ...] 많은 순. 분류가 비어 있는 공지는 뺀다.
 

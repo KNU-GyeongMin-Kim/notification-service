@@ -22,6 +22,12 @@ FIRST_RUN_DAYS = 365
 # 작성된 지 이 일수가 넘은 글은 새로 저장돼도 알림을 보내지 않는다.
 NOTIFY_MAX_AGE_DAYS = 3
 
+# LLM 요약. Ollama 주소와 모델은 llm/ollama_test.py 가 환경 변수 OLLAMA_URL, OLLAMA_MODEL 로 읽는다.
+# NOTIF_LLM=0 이면 요약을 아예 하지 않는다.
+LLM_ENABLED = os.environ.get("NOTIF_LLM", "1") != "0"
+SUMMARIZE_INTERVAL_MINUTES = 2  # 요약 대기 공지를 확인하는 주기
+SUMMARIZE_BATCH = 20            # 한 번에 처리할 최대 건수 (1건 약 4초)
+
 # 화면(React 개발 서버) 주소. 이 주소에서 오는 요청만 허용한다.
 CORS_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
 

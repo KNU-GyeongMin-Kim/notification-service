@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from database import db
 from crawler.crawl import crawl_new, crawl_since
 
-from . import config
+from . import config, summarizer
 
 log = logging.getLogger(__name__)
 
@@ -29,8 +29,14 @@ def crawl_job():
     """
     if db.get_last_post_no() is None:
         backfill_job(config.FIRST_RUN_DAYS)
-    else:
-        _run("new", _crawl_new)
+    elif _run("new", _crawl_new):
+        # 새 공지가 있으면 2분 주기를 기다리지 않고 바로 요약한다 (다음 단계인 알림이 요약 결과를 쓰므로)
+        summarizer.summarize_pending()
+
+
+def summarize_job():
+    """2분마다 도는 요약. 요약 대기 공지를 SUMMARIZE_BATCH 건씩 처리한다."""
+    summarizer.summarize_pending()
 
 
 def backfill_job(days):
@@ -56,7 +62,7 @@ def _crawl_new():
     for n in notices:
         if db.add_notice(n, is_initial=_too_old(n)):
             saved += 1
-    # TODO(2주차): 새로 저장한 공지 요약(LLM) -> 키워드 맞는 사용자에게 이메일 발송
+    # TODO: 요약이 끝난 새 공지 -> 키워드 맞는 사용자에게 이메일 발송 (사용자·키워드 DB 함수 필요)
     return saved
 
 
@@ -73,17 +79,20 @@ def _too_old(notice):
 
 
 def _run(mode, work):
+    """수집 작업을 잠금 안에서 실행한다. 저장한 공지 수를 돌려준다 (건너뛰거나 실패하면 0)."""
     if not _lock.acquire(blocking=False):
         log.info("이전 수집이 아직 진행 중이라 이번 차례는 건너뜁니다.")
-        return
+        return 0
     try:
         last_crawl.update(mode=mode, started_at=_now(), finished_at=None, saved=0, error=None)
         saved = work()
         last_crawl.update(finished_at=_now(), saved=saved)
         log.info("수집 완료(%s): 새 공지 %d건 저장", mode, saved)
+        return saved
     except Exception as e:
         last_crawl.update(finished_at=_now(), error=str(e))
         log.exception("수집 실패(%s)", mode)
+        return 0
     finally:
         _lock.release()
 
