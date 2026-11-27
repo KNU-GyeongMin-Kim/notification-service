@@ -31,7 +31,7 @@ load_dotenv(config.ROOT / ".env")
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").replace(" ", "")  # 앱 비밀번호는 띄어쓰기 포함으로 복사돼도 되게
 MAIL_FROM_NAME = os.environ.get("MAIL_FROM_NAME", "학과 공지 알림")
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")  # 우리 서비스 주소 (있으면 메일에 링크)
 DRY_RUN = os.environ.get("MAIL_DRY_RUN", "0") == "1" or not (SMTP_USER and SMTP_PASSWORD)
@@ -56,14 +56,14 @@ def match_keywords(notice, keywords):
 # ---------------------------------------------------------------- 메일 만들기
 
 
-def build_notice_email(notice, to, matched_keywords=()):
+def build_notice_email(notice, to, matched_keywords=(), matched_categories=()):
     """공지 1건으로 알림 메일(EmailMessage)을 만든다. 글자 버전과 HTML 버전을 같이 넣는다.
 
     notice: DB 공지 dict (database.db 가 돌려주는 형태)
     원문 링크는 요약이 틀릴 수 있으므로 항상 넣는다.
     """
     title = notice["title"]
-    rows = _info_rows(notice, matched_keywords)
+    rows = _info_rows(notice, matched_keywords, matched_categories)
     summary = notice.get("summary")
     no_body = not (notice.get("content") or "").strip()
     detail_url = f"{SITE_URL}/notices/{notice['post_no']}" if SITE_URL else None
@@ -122,10 +122,12 @@ def build_notice_email(notice, to, matched_keywords=()):
     return msg
 
 
-def _info_rows(notice, matched_keywords):
+def _info_rows(notice, matched_keywords, matched_categories=()):
     rows = []
     if matched_keywords:
         rows.append(("관심 키워드", ", ".join(matched_keywords)))
+    if matched_categories:
+        rows.append(("구독 분류", ", ".join(matched_categories)))
     category = " / ".join(c for c in (notice.get("category"), notice.get("board_category")) if c)
     if category:
         rows.append(("분류", category))
@@ -142,7 +144,7 @@ def _info_rows(notice, matched_keywords):
 
 def _footer_text():
     where = f"{SITE_URL}/settings" if SITE_URL else "서비스의 알림 설정"
-    return f"이 메일은 등록한 관심 키워드에 맞는 새 공지가 올라와 보내드렸습니다. 알림 끄기: {where}"
+    return f"이 메일은 등록한 관심 키워드나 분류에 맞는 새 공지가 올라와 보내드렸습니다. 알림 끄기: {where}"
 
 
 # ---------------------------------------------------------------- 보내기

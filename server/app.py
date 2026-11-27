@@ -7,7 +7,7 @@ from flask import Flask, jsonify, request
 
 from database import db
 
-from . import config, jobs, summarizer
+from . import config, jobs, notifier, summarizer
 
 
 def create_app():
@@ -37,6 +37,7 @@ def create_app():
             summary_status=db.count_summary_status(),
             last_crawl=jobs.last_crawl,
             last_summary=summarizer.last_summary,
+            last_notify=notifier.last_notify,
         )
 
     @app.get("/api/notices")

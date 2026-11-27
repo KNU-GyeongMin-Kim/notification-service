@@ -1,7 +1,4 @@
-"""주기적으로 도는 작업: 새 공지 수집.
-
-2주차에 요약(LLM)과 알림 발송을 이 흐름 뒤에 붙인다.
-"""
+"""주기적으로 도는 작업: 새 공지 수집 -> 요약(LLM) -> 알림(이메일)."""
 
 import logging
 import threading
@@ -10,7 +7,7 @@ from datetime import datetime, timedelta
 from database import db
 from crawler.crawl import crawl_new, crawl_since
 
-from . import config, summarizer
+from . import config, notifier, summarizer
 
 log = logging.getLogger(__name__)
 
@@ -30,13 +27,15 @@ def crawl_job():
     if db.get_last_post_no() is None:
         backfill_job(config.FIRST_RUN_DAYS)
     elif _run("new", _crawl_new):
-        # 새 공지가 있으면 2분 주기를 기다리지 않고 바로 요약한다 (다음 단계인 알림이 요약 결과를 쓰므로)
+        # 새 공지가 있으면 2분 주기를 기다리지 않고 바로 요약하고 알린다
         summarizer.summarize_pending()
+        notifier.notify_pending()
 
 
 def summarize_job():
-    """2분마다 도는 요약. 요약 대기 공지를 SUMMARIZE_BATCH 건씩 처리한다."""
+    """2분마다 도는 요약과 알림. 요약 대기 공지를 SUMMARIZE_BATCH 건씩 처리하고, 요약이 끝난 새 공지를 알린다."""
     summarizer.summarize_pending()
+    notifier.notify_pending()
 
 
 def backfill_job(days):
@@ -62,7 +61,6 @@ def _crawl_new():
     for n in notices:
         if db.add_notice(n, is_initial=_too_old(n)):
             saved += 1
-    # TODO: 요약이 끝난 새 공지 -> 키워드 맞는 사용자에게 이메일 발송 (사용자·키워드 DB 함수 필요)
     return saved
 
 
