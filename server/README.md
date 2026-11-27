@@ -46,6 +46,7 @@ python -m server --notify        # 알림 대기 공지를 한 번 처리하고 
 | `summarizer.py` | 요약 대기 공지를 LLM으로 요약·분류해 저장 |
 | `mailer.py` | 알림 메일 만들기·보내기, 키워드 대조 |
 | `notifier.py` | 알림 흐름: 대상 사용자 찾기, 발송, 발송 기록 |
+| `demo.py` | 시연용 공지 넣기·지우기 |
 
 ## LLM 요약 연결
 
@@ -115,6 +116,24 @@ if matched:
 - 작성된 지 3일이 넘은 공지는 실패가 있어도 더 시도하지 않습니다.
 - 메일 서버에 연결할 수 없으면 아무것도 표시하지 않고 다음 차례에 다시 시도합니다.
 - 필요한 DB 함수(`get_notices_to_notify`, `get_subscribers`, `was_sent`, `log_sent`, `mark_notified`)가 없으면 알림을 건너뜁니다.
+
+## 시연용 공지
+
+발표 당일 새 공지가 없어도 "새 공지 → 요약 → 알림 메일"을 보여주기 위한 도구입니다.
+
+```
+python -m server.demo list-presets       # 준비된 예시: 장학, 공모전, 취업, 이미지(본문 없는 공지)
+python -m server.demo add 장학            # 예시 공지를 넣고 바로 요약 -> 알림까지 실행
+python -m server.demo add --title "제목" --content "본문"
+python -m server.demo add 장학 --no-run   # 넣기만 하고 요약·알림은 실행 중인 서버에 맡김
+python -m server.demo list                # 시연용 공지와 요약·알림 상태
+python -m server.demo clear               # 시연용 공지와 발송 기록 모두 삭제 (실제 공지는 그대로)
+```
+
+- 시연용 공지는 **음수 글번호**(-1, -2, ...)로 저장되고 제목 앞에 `[시연용]`이 붙습니다. 실제 게시판 글과 섞이지 않고 새 글 수집에도 영향을 주지 않습니다.
+- 게시일이 지금 시각이라 목록 맨 위에 나오고, 새 공지로 취급되어 알림 대상이 됩니다.
+- 화면에서는 `/api/notices/-1`처럼 음수 번호로 상세를 볼 수 있습니다.
+- 발표가 끝나면 `clear`로 지웁니다.
 
 ## API
 
@@ -206,4 +225,4 @@ const data = await res.json();
 - [x] 이메일 만들기·보내기, 키워드 대조 (`mailer.py`)
 - [x] 알림 흐름 (`notifier.py`): 키워드·분류 대조, 발송, 재시도, 중복 방지
 - [ ] 알림 흐름 실제 동작 (DB 함수 추가 대기)
-- [ ] 시연용 공지 직접 넣기 기능
+- [x] 시연용 공지 넣기·지우기 (`demo.py`)

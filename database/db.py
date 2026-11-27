@@ -202,9 +202,9 @@ def save_ai_result(notice_id, result):
 
 
 def get_last_post_no():
-    """저장된 공지 중 가장 큰 게시판 글번호. 공지가 하나도 없으면 None."""
+    """저장된 실제 공지 중 가장 큰 게시판 글번호. 없으면 None. (시연용 공지는 음수 번호라 제외)"""
     conn = get_conn()
-    row = conn.execute("SELECT MAX(post_no) FROM notices").fetchone()
+    row = conn.execute("SELECT MAX(post_no) FROM notices WHERE post_no > 0").fetchone()
     conn.close()
     return row[0]
 
@@ -262,6 +262,35 @@ def count_summary_status():
     rows = conn.execute("SELECT summary_status, COUNT(*) FROM notices GROUP BY summary_status").fetchall()
     conn.close()
     return {r[0]: r[1] for r in rows}
+
+
+# 시연용 공지: 실제 게시판 글과 겹치지 않게 음수 글번호(-1, -2, ...)를 쓴다.
+
+
+def next_demo_post_no():
+    """다음 시연용 공지 글번호 (-1, -2, ...)."""
+    conn = get_conn()
+    row = conn.execute("SELECT MIN(post_no) FROM notices WHERE post_no < 0").fetchone()
+    conn.close()
+    return (row[0] or 0) - 1
+
+
+def list_demo_notices():
+    """시연용 공지 목록 (최근 것부터)."""
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM notices WHERE post_no < 0 ORDER BY post_no").fetchall()
+    conn.close()
+    return [_to_dict(row) for row in rows]
+
+
+def delete_demo_notices():
+    """시연용 공지와 그 발송 기록을 모두 지운다. 지운 공지 수를 돌려준다. 실제 공지는 건드리지 않는다."""
+    conn = get_conn()
+    conn.execute("DELETE FROM sent_log WHERE notice_id IN (SELECT id FROM notices WHERE post_no < 0)")
+    deleted = conn.execute("DELETE FROM notices WHERE post_no < 0").rowcount
+    conn.commit()
+    conn.close()
+    return deleted
 
 
 def count_by_category(column="category"):

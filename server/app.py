@@ -52,7 +52,7 @@ def create_app():
         )
         return jsonify(items=[notice_to_dict(r) for r in rows], total=total, page=page, size=size)
 
-    @app.get("/api/notices/<int:post_no>")
+    @app.get("/api/notices/<int(signed=True):post_no>")  # 시연용 공지는 음수 번호
     def notice_detail(post_no):
         row = db.get_notice_by_post_no(post_no)
         if row is None:
